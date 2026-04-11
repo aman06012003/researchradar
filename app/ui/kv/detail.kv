@@ -1,0 +1,243 @@
+#:kivy 2.3.0
+
+# =====================================================================
+# DetailScreen — ranked paper list for a single category
+# =====================================================================
+
+<PaperRow>:
+    orientation: 'vertical'
+    size_hint_y: None
+    height: dp(100)
+    padding: dp(14), dp(8)
+    spacing: dp(4)
+
+    canvas.before:
+        Color:
+            rgba: 0.14, 0.16, 0.22, 1
+        RoundedRectangle:
+            pos: self.x + dp(4), self.y + dp(2)
+            size: self.width - dp(8), self.height - dp(4)
+            radius: [dp(10)]
+
+    BoxLayout:
+        size_hint_y: None
+        height: dp(24)
+
+        Label:
+            text: '#' + root.rank
+            font_size: sp(16)
+            bold: True
+            color: 0.55, 0.78, 1.0, 1
+            size_hint_x: None
+            width: dp(36)
+            halign: 'center'
+            text_size: self.size
+
+        Label:
+            text: root.title
+            font_size: sp(14)
+            color: 0.92, 0.92, 0.95, 1
+            halign: 'left'
+            text_size: self.width, None
+            shorten: True
+            shorten_from: 'right'
+
+        Button:
+            text: '★' if root.is_bookmarked else '☆'
+            font_size: sp(20)
+            size_hint_x: None
+            width: dp(40)
+            background_color: 0, 0, 0, 0
+            color: (1, 0.85, 0.2, 1) if root.is_bookmarked else (0.5, 0.5, 0.5, 1)
+            on_release: root.toggle_bookmark()
+
+    Label:
+        text: root.authors + '  ·  ' + root.date_str
+        font_size: sp(11)
+        color: 0.55, 0.55, 0.6, 1
+        halign: 'left'
+        text_size: self.size
+        size_hint_y: None
+        height: dp(18)
+
+    BoxLayout:
+        size_hint_y: None
+        height: dp(24)
+
+        # Score bar
+        BoxLayout:
+            size_hint_x: 0.6
+            Widget:
+                canvas:
+                    Color:
+                        rgba: 0.2, 0.2, 0.3, 1
+                    RoundedRectangle:
+                        pos: self.pos
+                        size: self.width, dp(6)
+                        radius: [dp(3)]
+                    Color:
+                        rgba: 0.3, 0.75, 0.5, 1
+                    RoundedRectangle:
+                        pos: self.pos
+                        size: self.width * min(float(root.score_text or 0), 1.0), dp(6)
+                        radius: [dp(3)]
+
+        Label:
+            text: root.score_text
+            font_size: sp(12)
+            color: 0.4, 0.85, 0.6, 1
+            size_hint_x: 0.2
+            halign: 'right'
+            text_size: self.size
+
+        Button:
+            text: 'View'
+            font_size: sp(12)
+            size_hint_x: 0.2
+            background_normal: ''
+            background_color: 0.2, 0.4, 0.7, 1
+            color: 1, 1, 1, 1
+            on_release: root.show_detail()
+
+
+<PaperDetailPopup>:
+    size_hint: 0.92, 0.85
+    auto_dismiss: True
+
+    canvas.before:
+        Color:
+            rgba: 0.1, 0.12, 0.16, 0.98
+        RoundedRectangle:
+            pos: self.pos
+            size: self.size
+            radius: [dp(16)]
+
+    BoxLayout:
+        orientation: 'vertical'
+        padding: dp(20)
+        spacing: dp(12)
+
+        Label:
+            text: root.paper_title
+            font_size: sp(17)
+            bold: True
+            color: 1, 1, 1, 1
+            halign: 'left'
+            valign: 'top'
+            text_size: self.width, None
+            size_hint_y: None
+            height: self.texture_size[1]
+
+        Label:
+            text: root.paper_authors
+            font_size: sp(12)
+            color: 0.6, 0.6, 0.7, 1
+            halign: 'left'
+            text_size: self.size
+            size_hint_y: None
+            height: dp(20)
+
+        ScrollView:
+            Label:
+                text: root.paper_abstract
+                font_size: sp(13)
+                color: 0.85, 0.85, 0.9, 1
+                halign: 'left'
+                valign: 'top'
+                text_size: self.width, None
+                size_hint_y: None
+                height: self.texture_size[1]
+                markup: False
+
+        BoxLayout:
+            size_hint_y: None
+            height: dp(44)
+            spacing: dp(10)
+
+            Button:
+                text: '🌐 Open Abstract'
+                font_size: sp(13)
+                background_normal: ''
+                background_color: 0.2, 0.45, 0.8, 1
+                color: 1, 1, 1, 1
+                on_release: root.open_in_browser()
+
+            Button:
+                text: '📄 Open PDF'
+                font_size: sp(13)
+                background_normal: ''
+                background_color: 0.3, 0.65, 0.4, 1
+                color: 1, 1, 1, 1
+                on_release: root.open_pdf()
+
+            Button:
+                text: '✕ Close'
+                font_size: sp(13)
+                background_normal: ''
+                background_color: 0.5, 0.2, 0.2, 1
+                color: 1, 1, 1, 1
+                on_release: root.dismiss()
+
+
+<DetailScreen>:
+    name: 'detail'
+
+    BoxLayout:
+        orientation: 'vertical'
+
+        canvas.before:
+            Color:
+                rgba: 0.08, 0.09, 0.12, 1
+            Rectangle:
+                pos: self.pos
+                size: self.size
+
+        # ── Header ──────────────────────────────────────
+        BoxLayout:
+            size_hint_y: None
+            height: dp(60)
+            padding: dp(12), dp(10)
+
+            canvas.before:
+                Color:
+                    rgba: 0.10, 0.12, 0.18, 1
+                Rectangle:
+                    pos: self.pos
+                    size: self.size
+
+            Button:
+                text: '←'
+                font_size: sp(22)
+                size_hint_x: None
+                width: dp(48)
+                background_color: 0, 0, 0, 0
+                color: 0.7, 0.7, 0.8, 1
+                on_release: app.go_home()
+
+            BoxLayout:
+                orientation: 'vertical'
+                Label:
+                    text: root.category_name
+                    font_size: sp(18)
+                    bold: True
+                    color: 0.55, 0.78, 1.0, 1
+                    halign: 'left'
+                    text_size: self.size
+                Label:
+                    text: root.week_range
+                    font_size: sp(12)
+                    color: 0.5, 0.5, 0.6, 1
+                    halign: 'left'
+                    text_size: self.size
+
+        # ── Paper list ──────────────────────────────────
+        ScrollView:
+            do_scroll_x: False
+
+            BoxLayout:
+                id: paper_container
+                orientation: 'vertical'
+                size_hint_y: None
+                height: self.minimum_height
+                padding: dp(6)
+                spacing: dp(8)

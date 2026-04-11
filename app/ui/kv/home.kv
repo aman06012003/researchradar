@@ -1,0 +1,162 @@
+#:kivy 2.3.0
+
+# =====================================================================
+# HomeScreen — digest card list with FAB and status bar
+# =====================================================================
+
+<DigestCard>:
+    orientation: 'vertical'
+    size_hint_y: None
+    height: dp(120)
+    padding: dp(16)
+    spacing: dp(6)
+
+    canvas.before:
+        Color:
+            rgba: 0.15, 0.17, 0.22, 1
+        RoundedRectangle:
+            pos: self.x + dp(4), self.y + dp(2)
+            size: self.width - dp(8), self.height - dp(4)
+            radius: [dp(14)]
+        Color:
+            rgba: 0.22, 0.25, 0.32, 1
+        RoundedRectangle:
+            pos: self.x + dp(4), self.y + dp(4)
+            size: self.width - dp(8), self.height - dp(4)
+            radius: [dp(14)]
+
+    BoxLayout:
+        size_hint_y: None
+        height: dp(28)
+        Label:
+            text: root.category_name
+            font_size: sp(18)
+            bold: True
+            color: 0.55, 0.78, 1.0, 1
+            halign: 'left'
+            text_size: self.size
+        Label:
+            text: root.paper_count + ' papers'
+            font_size: sp(14)
+            color: 0.6, 0.6, 0.7, 1
+            halign: 'right'
+            text_size: self.size
+            size_hint_x: 0.3
+
+    Label:
+        text: root.top_paper_title
+        font_size: sp(14)
+        color: 0.85, 0.85, 0.9, 1
+        halign: 'left'
+        valign: 'top'
+        text_size: self.width, None
+        shorten: True
+        shorten_from: 'right'
+
+    BoxLayout:
+        size_hint_y: None
+        height: dp(22)
+        Label:
+            text: 'Score: ' + root.top_score
+            font_size: sp(12)
+            color: 0.4, 0.85, 0.6, 1
+            halign: 'left'
+            text_size: self.size
+        Label:
+            text: 'Tap to explore →'
+            font_size: sp(11)
+            color: 0.5, 0.5, 0.6, 1
+            halign: 'right'
+            text_size: self.size
+
+
+<HomeScreen>:
+    name: 'home'
+
+    BoxLayout:
+        orientation: 'vertical'
+        padding: 0
+        spacing: 0
+
+        canvas.before:
+            Color:
+                rgba: 0.08, 0.09, 0.12, 1
+            Rectangle:
+                pos: self.pos
+                size: self.size
+
+        # ── Header ──────────────────────────────────────
+        BoxLayout:
+            size_hint_y: None
+            height: dp(64)
+            padding: dp(16), dp(12)
+
+            canvas.before:
+                Color:
+                    rgba: 0.10, 0.12, 0.18, 1
+                Rectangle:
+                    pos: self.pos
+                    size: self.size
+
+            Label:
+                text: '📡  ResearchRadar'
+                font_size: sp(22)
+                bold: True
+                color: 1, 1, 1, 1
+                halign: 'left'
+                text_size: self.size
+                valign: 'center'
+
+            Button:
+                text: '⚙'
+                font_size: sp(22)
+                size_hint_x: None
+                width: dp(48)
+                background_color: 0, 0, 0, 0
+                color: 0.7, 0.7, 0.8, 1
+                on_release: app.show_settings()
+
+        # ── Digest cards ────────────────────────────────
+        ScrollView:
+            do_scroll_x: False
+
+            BoxLayout:
+                id: card_container
+                orientation: 'vertical'
+                size_hint_y: None
+                height: self.minimum_height
+                padding: dp(8)
+                spacing: dp(10)
+
+        # ── Bottom bar ──────────────────────────────────
+        BoxLayout:
+            size_hint_y: None
+            height: dp(56)
+            padding: dp(12), dp(8)
+
+            canvas.before:
+                Color:
+                    rgba: 0.10, 0.12, 0.18, 1
+                Rectangle:
+                    pos: self.pos
+                    size: self.size
+
+            Label:
+                text: 'Last: ' + root.last_fetched
+                font_size: sp(12)
+                color: 0.5, 0.5, 0.6, 1
+                halign: 'left'
+                text_size: self.size
+                valign: 'center'
+
+            Button:
+                text: '🔄 Fetch Now'
+                font_size: sp(14)
+                bold: True
+                size_hint_x: None
+                width: dp(130)
+                background_normal: ''
+                background_color: 0.2, 0.5, 0.9, 1
+                color: 1, 1, 1, 1
+                disabled: root.is_fetching
+                on_release: root.trigger_fetch()

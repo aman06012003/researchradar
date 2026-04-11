@@ -1,0 +1,318 @@
+#:kivy 2.3.0
+
+# =====================================================================
+# SettingsScreen — interest keywords, weights, API keys
+# =====================================================================
+
+<SettingsScreen>:
+    name: 'settings'
+
+    BoxLayout:
+        orientation: 'vertical'
+
+        canvas.before:
+            Color:
+                rgba: 0.08, 0.09, 0.12, 1
+            Rectangle:
+                pos: self.pos
+                size: self.size
+
+        # ── Header ──────────────────────────────────────
+        BoxLayout:
+            size_hint_y: None
+            height: dp(60)
+            padding: dp(12), dp(10)
+
+            canvas.before:
+                Color:
+                    rgba: 0.10, 0.12, 0.18, 1
+                Rectangle:
+                    pos: self.pos
+                    size: self.size
+
+            Button:
+                text: '←'
+                font_size: sp(22)
+                size_hint_x: None
+                width: dp(48)
+                background_color: 0, 0, 0, 0
+                color: 0.7, 0.7, 0.8, 1
+                on_release: app.go_home()
+
+            Label:
+                text: '⚙  Settings'
+                font_size: sp(20)
+                bold: True
+                color: 1, 1, 1, 1
+                halign: 'left'
+                text_size: self.size
+                valign: 'center'
+
+        # ── Scrollable content ──────────────────────────
+        ScrollView:
+            do_scroll_x: False
+
+            BoxLayout:
+                orientation: 'vertical'
+                size_hint_y: None
+                height: self.minimum_height
+                padding: dp(16)
+                spacing: dp(14)
+
+                # ── Interest Keywords ───────────────────
+                Label:
+                    text: 'Interest Keywords'
+                    font_size: sp(16)
+                    bold: True
+                    color: 0.55, 0.78, 1.0, 1
+                    halign: 'left'
+                    text_size: self.size
+                    size_hint_y: None
+                    height: dp(30)
+
+                Label:
+                    text: 'Machine Learning'
+                    font_size: sp(13)
+                    color: 0.7, 0.7, 0.8, 1
+                    halign: 'left'
+                    text_size: self.size
+                    size_hint_y: None
+                    height: dp(20)
+                TextInput:
+                    text: root.ml_keywords
+                    on_text: root.ml_keywords = self.text
+                    multiline: False
+                    size_hint_y: None
+                    height: dp(38)
+                    font_size: sp(13)
+                    background_color: 0.15, 0.17, 0.22, 1
+                    foreground_color: 0.9, 0.9, 0.95, 1
+                    cursor_color: 0.55, 0.78, 1.0, 1
+
+                Label:
+                    text: 'Artificial Intelligence'
+                    font_size: sp(13)
+                    color: 0.7, 0.7, 0.8, 1
+                    halign: 'left'
+                    text_size: self.size
+                    size_hint_y: None
+                    height: dp(20)
+                TextInput:
+                    text: root.ai_keywords
+                    on_text: root.ai_keywords = self.text
+                    multiline: False
+                    size_hint_y: None
+                    height: dp(38)
+                    font_size: sp(13)
+                    background_color: 0.15, 0.17, 0.22, 1
+                    foreground_color: 0.9, 0.9, 0.95, 1
+                    cursor_color: 0.55, 0.78, 1.0, 1
+
+                Label:
+                    text: 'Computer Science'
+                    font_size: sp(13)
+                    color: 0.7, 0.7, 0.8, 1
+                    halign: 'left'
+                    text_size: self.size
+                    size_hint_y: None
+                    height: dp(20)
+                TextInput:
+                    text: root.cs_keywords
+                    on_text: root.cs_keywords = self.text
+                    multiline: False
+                    size_hint_y: None
+                    height: dp(38)
+                    font_size: sp(13)
+                    background_color: 0.15, 0.17, 0.22, 1
+                    foreground_color: 0.9, 0.9, 0.95, 1
+                    cursor_color: 0.55, 0.78, 1.0, 1
+
+                Label:
+                    text: 'Neuroscience'
+                    font_size: sp(13)
+                    color: 0.7, 0.7, 0.8, 1
+                    halign: 'left'
+                    text_size: self.size
+                    size_hint_y: None
+                    height: dp(20)
+                TextInput:
+                    text: root.neuro_keywords
+                    on_text: root.neuro_keywords = self.text
+                    multiline: False
+                    size_hint_y: None
+                    height: dp(38)
+                    font_size: sp(13)
+                    background_color: 0.15, 0.17, 0.22, 1
+                    foreground_color: 0.9, 0.9, 0.95, 1
+                    cursor_color: 0.55, 0.78, 1.0, 1
+
+                Label:
+                    text: 'Brain-Computer Interface'
+                    font_size: sp(13)
+                    color: 0.7, 0.7, 0.8, 1
+                    halign: 'left'
+                    text_size: self.size
+                    size_hint_y: None
+                    height: dp(20)
+                TextInput:
+                    text: root.bci_keywords
+                    on_text: root.bci_keywords = self.text
+                    multiline: False
+                    size_hint_y: None
+                    height: dp(38)
+                    font_size: sp(13)
+                    background_color: 0.15, 0.17, 0.22, 1
+                    foreground_color: 0.9, 0.9, 0.95, 1
+                    cursor_color: 0.55, 0.78, 1.0, 1
+
+                # ── Ranking Weights ─────────────────────
+                Label:
+                    text: 'Ranking Weights'
+                    font_size: sp(16)
+                    bold: True
+                    color: 0.55, 0.78, 1.0, 1
+                    halign: 'left'
+                    text_size: self.size
+                    size_hint_y: None
+                    height: dp(30)
+
+                Label:
+                    text: 'Relevance: ' + '{:.0%}'.format(root.weight_relevance)
+                    font_size: sp(13)
+                    color: 0.7, 0.7, 0.8, 1
+                    halign: 'left'
+                    text_size: self.size
+                    size_hint_y: None
+                    height: dp(20)
+                Slider:
+                    value: root.weight_relevance
+                    on_value: root.weight_relevance = self.value
+                    min: 0
+                    max: 1
+                    step: 0.05
+                    size_hint_y: None
+                    height: dp(36)
+                    cursor_size: dp(20), dp(20)
+
+                Label:
+                    text: 'Citations: ' + '{:.0%}'.format(root.weight_citation)
+                    font_size: sp(13)
+                    color: 0.7, 0.7, 0.8, 1
+                    halign: 'left'
+                    text_size: self.size
+                    size_hint_y: None
+                    height: dp(20)
+                Slider:
+                    value: root.weight_citation
+                    on_value: root.weight_citation = self.value
+                    min: 0
+                    max: 1
+                    step: 0.05
+                    size_hint_y: None
+                    height: dp(36)
+                    cursor_size: dp(20), dp(20)
+
+                Label:
+                    text: 'Recency: ' + '{:.0%}'.format(root.weight_recency)
+                    font_size: sp(13)
+                    color: 0.7, 0.7, 0.8, 1
+                    halign: 'left'
+                    text_size: self.size
+                    size_hint_y: None
+                    height: dp(20)
+                Slider:
+                    value: root.weight_recency
+                    on_value: root.weight_recency = self.value
+                    min: 0
+                    max: 1
+                    step: 0.05
+                    size_hint_y: None
+                    height: dp(36)
+                    cursor_size: dp(20), dp(20)
+
+                # ── Papers per category ─────────────────
+                Label:
+                    text: 'Papers per Category'
+                    font_size: sp(16)
+                    bold: True
+                    color: 0.55, 0.78, 1.0, 1
+                    halign: 'left'
+                    text_size: self.size
+                    size_hint_y: None
+                    height: dp(30)
+
+                Spinner:
+                    text: str(int(root.top_n))
+                    values: ['3', '5', '7', '10']
+                    on_text: root.top_n = int(self.text) if self.text else 5
+                    size_hint_y: None
+                    height: dp(40)
+                    font_size: sp(14)
+                    background_color: 0.18, 0.2, 0.28, 1
+                    color: 0.9, 0.9, 0.95, 1
+
+                # ── API Keys (optional) ─────────────────
+                Label:
+                    text: 'API Keys (optional)'
+                    font_size: sp(16)
+                    bold: True
+                    color: 0.55, 0.78, 1.0, 1
+                    halign: 'left'
+                    text_size: self.size
+                    size_hint_y: None
+                    height: dp(30)
+
+                Label:
+                    text: 'Semantic Scholar API Key'
+                    font_size: sp(13)
+                    color: 0.7, 0.7, 0.8, 1
+                    halign: 'left'
+                    text_size: self.size
+                    size_hint_y: None
+                    height: dp(20)
+                TextInput:
+                    text: root.semantic_scholar_key
+                    on_text: root.semantic_scholar_key = self.text
+                    multiline: False
+                    password: True
+                    size_hint_y: None
+                    height: dp(38)
+                    font_size: sp(13)
+                    background_color: 0.15, 0.17, 0.22, 1
+                    foreground_color: 0.9, 0.9, 0.95, 1
+
+                Label:
+                    text: 'PubMed (NCBI) API Key'
+                    font_size: sp(13)
+                    color: 0.7, 0.7, 0.8, 1
+                    halign: 'left'
+                    text_size: self.size
+                    size_hint_y: None
+                    height: dp(20)
+                TextInput:
+                    text: root.pubmed_key
+                    on_text: root.pubmed_key = self.text
+                    multiline: False
+                    password: True
+                    size_hint_y: None
+                    height: dp(38)
+                    font_size: sp(13)
+                    background_color: 0.15, 0.17, 0.22, 1
+                    foreground_color: 0.9, 0.9, 0.95, 1
+
+                # ── Save Button ─────────────────────────
+                Button:
+                    text: '💾  Save Settings'
+                    font_size: sp(16)
+                    bold: True
+                    size_hint_y: None
+                    height: dp(50)
+                    background_normal: ''
+                    background_color: 0.2, 0.55, 0.35, 1
+                    color: 1, 1, 1, 1
+                    on_release: root.save_settings()
+
+                # Spacer
+                Widget:
+                    size_hint_y: None
+                    height: dp(40)
