@@ -2,7 +2,6 @@
 
 **Intelligence shouldn't be manual.** ResearchRadar is your personal AI-powered research assistant that monitors scientific papers, ranks them by your specific interests, and delivers a concise digest directly to your Telegram.
 
-[![Deploy to Hugging Face](https://img.shields.io/badge/%F0%9F%A4%97%20Deploy%20to-Hugging%20Face-yellow)](https://huggingface.co/spaces)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue)](https://www.python.org/)
 [![Telegram Bot](https://img.shields.io/badge/Telegram-Join%20Bot-blue?logo=telegram)](https://t.me/wqadgh_bot)
 
