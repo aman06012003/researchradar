@@ -92,9 +92,3 @@ This repository is pre-configured with a GitHub Action to run the digest every d
 *   `app.py`: Streamlit dashboard for cloud hosting.
 *   `run_daily.py`: Command-line interface and background scheduler.
 
----
-
-## 📄 License
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-*Built with ❤️ for the research community.*
