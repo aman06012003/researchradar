@@ -121,6 +121,10 @@ def run_fetch_and_notify(data_dir: str) -> None:
     # Load user profile from settings
     profile = _load_profile(data_dir)
 
+    log.info("Checking for new subscribers...")
+    from app.core.telegram_bot import poll_updates
+    poll_updates(data_dir)
+
     log.info("Starting paper fetch...")
     print(f"[{datetime.now().strftime('%H:%M:%S')}] 🔄 Fetching papers...")
 
@@ -247,6 +251,10 @@ Examples:
         help='Fetch papers and send notification immediately',
     )
     parser.add_argument(
+        '--poll', action='store_true',
+        help='Listen for /start commands and exit',
+    )
+    parser.add_argument(
         '--hour', type=int, default=DEFAULT_HOUR,
         help=f'Hour to fetch (0-23, default: {DEFAULT_HOUR})',
     )
@@ -269,6 +277,11 @@ Examples:
 
     if args.test:
         send_test_message(data_dir)
+        return
+
+    if args.poll:
+        from app.core.telegram_bot import poll_updates
+        poll_updates(data_dir)
         return
 
     if args.now:

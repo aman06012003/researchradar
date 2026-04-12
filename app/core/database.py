@@ -153,6 +153,18 @@ def run_migrations(conn: sqlite3.Connection, current: int, target: int) -> None:
             else:
                 raise
 
+    if current < 4:
+        try:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS subscribers (
+                    chat_id TEXT PRIMARY KEY,
+                    joined_at TEXT NOT NULL
+                )
+            """)
+            logger.info('V4 Migration: Created subscribers table.')
+        except sqlite3.OperationalError:
+            raise
+
     conn.execute(
         "UPDATE meta SET value = ? WHERE key = 'db_version'",
         (str(target),),
@@ -368,5 +380,52 @@ def get_bookmarked_papers(db_path: str) -> List[Paper]:
                ORDER BY composite_score DESC"""
         ).fetchall()
         return [_row_to_paper(r) for r in rows]
+    finally:
+        conn.close()
+
+# ---------------------------------------------------------------------------
+# Subscriber Management
+# ---------------------------------------------------------------------------
+
+@_retry_on_locked
+def add_subscriber(db_path: str, chat_id: str) -> bool:
+    """Add a new subscriber if they don't exist. Returns True if new."""
+    conn = get_connection(db_path)
+    try:
+        row = conn.execute(
+            'SELECT chat_id FROM subscribers WHERE chat_id = ?',
+            (chat_id,)
+        ).fetchone()
+        if row:
+            return False
+        
+        conn.execute(
+            'INSERT INTO subscribers (chat_id, joined_at) VALUES (?, ?)',
+            (chat_id, datetime.now().isoformat())
+        )
+        conn.commit()
+        return True
+    finally:
+        conn.close()
+
+
+@_retry_on_locked
+def get_all_subscribers(db_path: str) -> List[str]:
+    """Get all registered Telegram chat IDs."""
+    conn = get_connection(db_path)
+    try:
+        rows = conn.execute('SELECT chat_id FROM subscribers').fetchall()
+        return [str(r['chat_id']) for r in rows]
+    finally:
+        conn.close()
+
+
+@_retry_on_locked
+def remove_subscriber(db_path: str, chat_id: str) -> None:
+    """Remove a subscriber ($stop)."""
+    conn = get_connection(db_path)
+    try:
+        conn.execute('DELETE FROM subscribers WHERE chat_id = ?', (chat_id,))
+        conn.commit()
     finally:
         conn.close()

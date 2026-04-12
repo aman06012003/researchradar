@@ -254,27 +254,117 @@ def _send_chunked(
 
 def send_digest_notification(digest: Digest, data_dir: str) -> bool:
     """
-    Send the full digest to Telegram.
+    Send the full digest to all subscribers.
 
     Reads credentials from env vars or settings.json.
-    Returns True on success, False on failure (never raises).
+    Pulls subscriber list from database.
     """
-    token, chat_id = _get_credentials(data_dir)
+    token, primary_chat_id = _get_credentials(data_dir)
 
-    if not token or not chat_id:
-        logger.warning(
-            'Telegram not configured — set TELEGRAM_BOT_TOKEN and '
-            'TELEGRAM_CHAT_ID in environment or settings.json'
-        )
+    if not token:
+        logger.warning('Telegram Bot Token not configured')
         return False
 
-    # Send short notification first
-    short = format_short_notification(digest)
-    send_message(token, chat_id, short)
+    db_path = os.path.join(data_dir, 'researchradar.db')
+    from app.core import database
+    subscribers = database.get_all_subscribers(db_path)
 
-    # Then send the full digest
+    # Always include the primary chat_id from config if it's set
+    if primary_chat_id and primary_chat_id not in subscribers:
+        subscribers.append(primary_chat_id)
+
+    if not subscribers:
+        logger.warning('No subscribers found in database or config')
+        return False
+
+    # Format messages once
+    short = format_short_notification(digest)
     full = format_digest_message(digest)
-    return send_message(token, chat_id, full)
+
+    success_count = 0
+    for chat_id in subscribers:
+        # Send short notification first
+        send_message(token, chat_id, short)
+        # Then send the full digest
+        if send_message(token, chat_id, full):
+            success_count += 1
+
+    logger.info('Broadcast digest to %d/%d subscribers', success_count, len(subscribers))
+    return success_count > 0
+
+
+def poll_updates(data_dir: str) -> None:
+    """
+    Check for new Telegram messages and handle /start or /stop commands.
+    This should be called periodically (e.g. from the app worker).
+    """
+    token, _ = _get_credentials(data_dir)
+    if not token:
+        return
+
+    db_path = os.path.join(data_dir, 'researchradar.db')
+    from app.core import database
+
+    # Use a persistent offset to avoid re-reading old messages
+    offset_path = os.path.join(data_dir, '.tg_offset')
+    offset = 0
+    if os.path.exists(offset_path):
+        try:
+            with open(offset_path, 'r') as f:
+                offset = int(f.read().strip())
+        except Exception:
+            pass
+
+    url = f"https://api.telegram.org/bot{token}/getUpdates"
+    try:
+        resp = requests.get(url, params={'offset': offset, 'timeout': 1}, timeout=5)
+        if resp.status_code != 200:
+            return
+
+        updates = resp.json().get('result', [])
+        for up in updates:
+            update_id = up['update_id']
+            offset = update_id + 1
+            
+            msg = up.get('message')
+            if not msg:
+                continue
+            
+            chat_id = str(msg['chat']['id'])
+            text = msg.get('text', '').strip().lower()
+
+            if text == '/start':
+                new = database.add_subscriber(db_path, chat_id)
+                welcome = (
+                    "📡 *Welcome to ResearchRadar!*\n\n"
+                    "You've been subscribed to the daily paper digest. "
+                    "You'll receive fresh updates every morning at 05:00 AM EEST."
+                )
+                if not new:
+                    welcome = "📡 You are already subscribed to ResearchRadar!"
+                
+                send_message(token, chat_id, welcome)
+
+                # FOR TESTING: Send the latest available digest immediately to new users
+                if new:
+                    latest = database.get_latest_digest(db_path)
+                    if latest:
+                        send_message(token, chat_id, "🚀 *Sending you the latest available digest immediately:*")
+                        # Use split sending for the full digest
+                        full = format_digest_message(latest)
+                        send_message(token, chat_id, full)
+            
+            elif text == '/stop':
+                database.remove_subscriber(db_path, chat_id)
+                goodbye = "📡 You have been unsubscribed from ResearchRadar. Check back anytime!"
+                send_message(token, chat_id, goodbye)
+
+        # Save new offset
+        with open(offset_path, 'w') as f:
+            f.write(str(offset))
+
+    except Exception as e:
+        logger.error("Error polling Telegram updates: %s", e)
 
 
 def send_test_message(data_dir: str) -> bool:

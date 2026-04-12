@@ -33,6 +33,12 @@ def run_worker():
         
         # Check every 60 seconds if it's time
         if wait_seconds > 60:
+            # Poll for new subscribers while waiting
+            try:
+                from app.core.telegram_bot import poll_updates
+                poll_updates(".researchradar")
+            except:
+                pass
             time.sleep(60)
             continue
 
