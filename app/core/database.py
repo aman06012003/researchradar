@@ -68,6 +68,11 @@ CREATE TABLE IF NOT EXISTS digest_papers (
     FOREIGN KEY (digest_id) REFERENCES digests(digest_id),
     FOREIGN KEY (paper_id)  REFERENCES papers(paper_id)
 );
+
+CREATE TABLE IF NOT EXISTS subscribers (
+    chat_id TEXT PRIMARY KEY,
+    joined_at TEXT NOT NULL
+);
 """
 
 # ---------------------------------------------------------------------------
@@ -124,6 +129,20 @@ def initialize(db_path: str) -> None:
             current = int(row['value'])
             if current < DB_VERSION:
                 run_migrations(conn, current, DB_VERSION)
+        
+        # Recovery: Ensure 'subscribers' exists even if migrations were skipped 
+        # (Fixes a rare race condition where DB_VERSION was updated before table creation)
+        try:
+            conn.execute("SELECT 1 FROM subscribers LIMIT 1")
+        except sqlite3.OperationalError:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS subscribers (
+                    chat_id TEXT PRIMARY KEY,
+                    joined_at TEXT NOT NULL
+                )
+            """)
+            logger.info('Recovery: Created missing subscribers table.')
+
         conn.commit()
     finally:
         conn.close()
