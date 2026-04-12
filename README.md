@@ -62,12 +62,24 @@ CROSSREF_MAILTO=your_email@example.com
 
 ---
 
-## ☁️ Deployment (Hugging Face Spaces)
-This project is pre-configured for **Hugging Face Spaces**.
+## 🤖 Automation & Deployment
+
+You can run ResearchRadar 24/7 without keeping your computer on.
+
+### Option A: GitHub Actions (Recommended)
+This repository is pre-configured with a GitHub Action to run the digest every day at 05:00 AM EEST.
+1. Fork or push this repository to your GitHub account.
+2. Go to **Settings > Secrets and variables > Actions**.
+3. Add the following **Repository secrets**:
+    - `GROQ_API_KEY`: Your Groq API key.
+    - `TELEGRAM_BOT_TOKEN`: Your bot token from @BotFather.
+    - `TELEGRAM_CHAT_ID`: Your chat ID.
+4. The workflow will run automatically. You can also trigger it manually from the **Actions** tab.
+
+### Option B: Hugging Face Spaces
 1. Create a new **Streamlit Space**.
-2. Upload the project files.
-3. Add your secrets in physical settings: `GROQ_API_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`.
-4. The Space will run `app.py` 24/7, handling the daily background tasks.
+2. Add your secrets in **Settings > Variables and secrets**: `GROQ_API_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`.
+3. The Space will run `app.py` 24/7.
 
 ---
 
