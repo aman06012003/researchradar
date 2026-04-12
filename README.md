@@ -37,7 +37,7 @@ If you want to track your own specific keywords or use your own API keys:
 #### Installation
 ```bash
 # Clone the repository
-https://github.com/aman06012003/researchradar.git
+git clone https://github.com/aman06012003/researchradar.git
 cd ResearchRadar
 
 # Install dependencies
