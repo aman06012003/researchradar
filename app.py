@@ -20,6 +20,14 @@ log_placeholder = st.empty()
 
 def run_worker():
     """Background thread that triggers the fetch script."""
+    # Ensure database is initialized/migrated before anything starts
+    try:
+        from app.core import database
+        db_path = os.path.join(".researchradar", "researchradar.db")
+        database.initialize(db_path)
+    except Exception as e:
+        print(f"Database init error: {e}")
+
     while True:
         now = datetime.now(TIMEZONE)
         

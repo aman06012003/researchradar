@@ -280,6 +280,8 @@ Examples:
         return
 
     if args.poll:
+        db_path = os.path.join(data_dir, 'researchradar.db')
+        database.initialize(db_path)
         from app.core.telegram_bot import poll_updates
         poll_updates(data_dir)
         return
