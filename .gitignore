@@ -33,10 +33,11 @@ env/
 .env/
 
 # Database files
-*.db
+# we allow researchradar.db to be tracked for GitHub Actions persistence
+# *.db
 *.sqlite
 *.sqlite3
-researchradar.db
+# researchradar.db
 
 # Testing
 .pytest_cache/
