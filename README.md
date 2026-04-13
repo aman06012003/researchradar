@@ -13,7 +13,6 @@
 *   📊 **Smart Ranking**: Uses **TF-IDF ranking** based on your unique interests (weighted by relevance, citations, and recency).
 *   🤖 **AI Summaries**: Leverages **Groq (Llama-3)** to provide structured, meaningful summaries of complex abstracts.
 *   📲 **Telegram Delivery**: Rich, formatted notifications sent straight to your phone every morning.
-*   🎮 **Cross-Platform**: Includes a **Kivy GUI** for desktop/mobile and a **Streamlit Dashboard** for cloud hosting.
 
 ---
 
