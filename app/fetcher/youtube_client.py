@@ -14,15 +14,14 @@ from app.fetcher.http_session import RetrySession
 logger = logging.getLogger(__name__)
 
 _AI_CHANNEL_IDS = [
-    'UCghJTNTO9kcDeUFXMuSDGLQ', # Two Minute Papers
-    'UCLKPca3kwwd-B59HNr-_lvA', # AI Explained
+    'UCbfYPyITQ-7l4upoX8nvctg', # Two Minute Papers
+    'UCNJ1Ymd5yFuUPtn21xtRbbw', # AI Explained
     'UCZHmQk67mSJgfCCTn7xBfew', # Yannic Kilcher
-    'UCYUq87t77YNTG5m256fOXeQ',
-    'UCgBncpylJ1kiVaPyP-PZauQ',
-    'UC6MhHkSosYXAD-LTXBWyLMg',
-    'UCJgIbYl6C5no72a0NUAPcTA',
-    'UCNIkB2IeJ-6AmZv7bQ1oBYg',
-      # Sentdex
+    'UCsBjURrPoezykLs9EqgamOA', # Fireship
+    'UC9-y-6csu5WGm29I7JiwpnA', # Computerphile
+    'UCSHZKyawb77ixDdsGog4iWA', # Lex Fridman
+    'UCXUPKJO5MZQN11PqgIvyuvQ', # Andrej Karpathy
+    'UCYO_jab_esuFRV4b17AJtAw', # 3Blue1Brown
 ]
 
 def fetch_latest_videos(limit_per_channel: int = 1) -> List[Dict[str, str]]:

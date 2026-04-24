@@ -127,6 +127,14 @@ def _parse_entry(
     except (ValueError, TypeError):
         published = date.today()
 
+    # FILTER BY DATE: Only return papers between start and end inclusive
+    if not (start <= published <= end):
+        logger.debug(
+            'Skipping arXiv entry from %s (outside range %s to %s)',
+            published, start, end
+        )
+        return None
+
     # Categories
     categories = []
     for cat_el in entry.findall('atom:category', _NS):

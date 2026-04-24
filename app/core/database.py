@@ -354,6 +354,27 @@ def get_papers(db_path: str, category: str, limit: int = 10) -> List[Paper]:
 
 
 @_retry_on_locked
+def get_existing_paper_ids(db_path: str, candidate_ids: List[str]) -> set[str]:
+    """Return a set of paper_ids that already exist in the database."""
+    if not candidate_ids:
+        return set()
+    conn = get_connection(db_path)
+    try:
+        # Use chunks if there are too many IDs (SQLite limit is 999 placeholders usually)
+        chunk_size = 900
+        existing = set()
+        for i in range(0, len(candidate_ids), chunk_size):
+            chunk = candidate_ids[i : i + chunk_size]
+            placeholders = ', '.join(['?'] * len(chunk))
+            query = f"SELECT paper_id FROM papers WHERE paper_id IN ({placeholders})"
+            rows = conn.execute(query, chunk).fetchall()
+            existing.update(r['paper_id'] for r in rows)
+        return existing
+    finally:
+        conn.close()
+
+
+@_retry_on_locked
 def toggle_bookmark(db_path: str, paper_id: str) -> bool:
     """Toggle bookmark state; returns the new state."""
     conn = get_connection(db_path)

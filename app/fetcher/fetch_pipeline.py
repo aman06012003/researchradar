@@ -78,6 +78,15 @@ def run_weekly_fetch(
         logger.warning('Citation enrichment failed: %s', exc)
         digest.fetch_errors.append(f'Citation enrichment: {exc}')
 
+    # Filter out papers that have already been sent in a previous digest
+    flat_all = [p for cat_list in all_papers.values() for p in cat_list]
+    existing_ids = database.get_existing_paper_ids(db_path, [p.paper_id for p in flat_all])
+    
+    if existing_ids:
+        logger.info("Filtering out %d papers already in database", len(existing_ids))
+        for cat in all_papers:
+            all_papers[cat] = [p for p in all_papers[cat] if p.paper_id not in existing_ids]
+
     # Rank
     digest.total_fetched = sum(len(v) for v in all_papers.values())
     ranked = composite_ranker.rank_all(all_papers, profile)
