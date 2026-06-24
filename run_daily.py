@@ -279,6 +279,8 @@ Examples:
     )
 
     args = parser.parse_args()
+    data_dir = args.data_dir
+    os.makedirs(data_dir, exist_ok=True)
     db_path = os.path.join(data_dir, 'researchradar.duckdb')
 
     if args.setup:
@@ -298,7 +300,7 @@ Examples:
 
     if args.cleanup:
         database.cleanup_old_data(db_path)
-        print("✅ Database cleanup complete.")
+        print("[SUCCESS] Database cleanup complete.")
         return
 
     if args.article:

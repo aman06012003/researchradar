@@ -140,19 +140,25 @@ def initialize(db_path: str) -> None:
 def _migrate_from_sqlite(sqlite_path: str, duckdb_path: str) -> None:
     """Migrate data from SQLite to DuckDB using DuckDB's sqlite extension."""
     logger.info('Migrating data from SQLite (%s) to DuckDB (%s)', sqlite_path, duckdb_path)
+    # Physical file connection
     conn = duckdb.connect(duckdb_path)
     try:
-        conn.install_extension("sqlite")
-        conn.load_extension("sqlite")
-        conn.execute(f"CALL sqlite_attach('{sqlite_path}');")
+        conn.execute("INSTALL sqlite;")
+        conn.execute("LOAD sqlite;")
+        # Attach SQLite using standard ATTACH syntax
+        conn.execute(f"ATTACH '{sqlite_path}' AS old_sqlite (TYPE SQLITE);")
         
+        # Copy tables with prefix
         for table in ['meta', 'papers', 'digests', 'digest_papers', 'subscribers']:
             try:
-                conn.execute(f"CREATE TABLE {table} AS SELECT * FROM {table};")
+                # Drop if exists (could happen if previous attempt failed partially)
+                conn.execute(f"DROP TABLE IF EXISTS {table};")
+                conn.execute(f"CREATE TABLE {table} AS SELECT * FROM old_sqlite.{table};")
                 logger.info('Migrated table: %s', table)
             except Exception as e:
                 logger.warning('Could not migrate table %s: %s', table, e)
         
+        conn.execute("DETACH old_sqlite;")
     finally:
         conn.close()
 
@@ -463,26 +469,26 @@ def cleanup_old_data(db_path: str, days: int = 7) -> None:
     conn = get_connection(db_path)
     try:
         # Delete old links
-        conn.execute("""
+        conn.execute(f"""
             DELETE FROM digest_papers 
             WHERE digest_id IN (
                 SELECT digest_id FROM digests 
-                WHERE generated_at < strftime('%Y-%m-%d', 'now', '-' || ? || ' days')
+                WHERE CAST(generated_at AS DATE) < CURRENT_DATE - INTERVAL '{days}' DAY
             )
-        """, [days])
+        """)
         
         # Delete old digests
-        conn.execute("""
+        conn.execute(f"""
             DELETE FROM digests 
-            WHERE generated_at < strftime('%Y-%m-%d', 'now', '-' || ? || ' days')
-        """, [days])
+            WHERE CAST(generated_at AS DATE) < CURRENT_DATE - INTERVAL '{days}' DAY
+        """)
         
         # Delete old papers (unless bookmarked)
-        conn.execute("""
+        conn.execute(f"""
             DELETE FROM papers 
             WHERE is_bookmarked = 0 
-            AND fetched_at < strftime('%Y-%m-%d', 'now', '-' || ? || ' days')
-        """, [days])
+            AND CAST(fetched_at AS DATE) < CURRENT_DATE - INTERVAL '{days}' DAY
+        """)
         
         logger.info('Cleanup complete.')
     finally:
@@ -495,10 +501,9 @@ def get_papers_for_period(db_path: str, days: int = 7) -> List[Paper]:
     conn = get_connection(db_path)
     try:
         rows = conn.execute(
-            """SELECT * FROM papers 
-               WHERE fetched_at > strftime('%Y-%m-%d', 'now', '-' || ? || ' days')
-               ORDER BY composite_score DESC""",
-            [days]
+            f"""SELECT * FROM papers 
+               WHERE CAST(fetched_at AS DATE) > CURRENT_DATE - INTERVAL '{days}' DAY
+               ORDER BY composite_score DESC"""
         ).fetchall()
         return [_row_to_paper(r) for r in rows]
     finally:
