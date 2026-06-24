@@ -65,7 +65,7 @@ WEIGHT_RECENCY      = 0.10
 # Database
 # ---------------------------------------------------------------------------
 DB_VERSION          = 4         # Added subscribers table
-DB_PATH             = os.getenv('RESEARCHRADAR_DB_PATH', '')  # resolved at runtime
+DB_PATH             = os.getenv('RESEARCHRADAR_DB_PATH', 'researchradar.duckdb')
 
 # ---------------------------------------------------------------------------
 # Category Mapping

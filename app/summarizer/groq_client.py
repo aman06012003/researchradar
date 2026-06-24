@@ -109,3 +109,52 @@ class GroqSummarizer:
             # We only summarize if it doesn't already have a summary
             if not p.summary_llm:
                 p.summary_llm = self.summarize_paper(p)
+
+    def generate_article(self, papers: List[Paper]) -> str:
+        """
+        Generate a cohesive Medium article from a list of papers.
+        """
+        if not self.api_key:
+            return "Groq API key not configured."
+
+        paper_context = "\n\n".join([
+            f"Title: {p.title}\nCategory: {p.app_category}\nSummary: {p.summary_llm or p.abstract[:500]}"
+            for p in papers
+        ])
+
+        prompt = (
+            "Generate a professional, engaging Medium article based on the following research paper summaries.\n\n"
+            "Guidelines:\n"
+            "1. Create a catchy, high-level title.\n"
+            "2. Group papers into logical sections (e.g., breakthroughs in AI, Neuroscience corner, etc.).\n"
+            "3. Focus on the 'why it matters' for each group.\n"
+            "4. Use Markdown formatting (headers, bold, bullet points).\n"
+            "5. Include a 'Labels & Tags' section at the end.\n"
+            "6. Keep the tone academic yet accessible.\n\n"
+            f"Context:\n{paper_context}"
+        )
+
+        try:
+            response = requests.post(
+                GROQ_BASE_URL,
+                headers={"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"},
+                json={
+                    "model": GROQ_MODEL,
+                    "messages": [
+                        {"role": "system", "content": "You are an expert science communicator and technical writer."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    "temperature": 0.7,
+                    "max_tokens": 2000
+                },
+                timeout=60
+            )
+
+            if response.status_code == 200:
+                data = response.json()
+                return data['choices'][0]['message']['content'].strip()
+            else:
+                return f"Error generating article: {response.text}"
+
+        except Exception as exc:
+            return f"Error generating article: {exc}"

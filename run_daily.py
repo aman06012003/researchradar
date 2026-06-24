@@ -14,11 +14,14 @@ Usage:
     # Run once immediately (fetch + notify)
     python run_daily.py --now
 
-    # Start the daily scheduler (runs forever, fetches at 5:00 AM)
-    python run_daily.py
+    # Generate Sunday article
+    python run_daily.py --article
 
-    # Custom time
-    python run_daily.py --hour 8 --minute 30
+    # Cleanup old data (older than 7 days)
+    python run_daily.py --cleanup
+
+    # Start the daily scheduler (runs forever)
+    python run_daily.py
 """
 
 from __future__ import annotations
@@ -40,7 +43,7 @@ from app.core.config import logger
 from app.core import database
 from app.core.models import UserProfile
 from app.core.telegram_bot import send_digest_notification, send_test_message
-from app.fetcher.fetch_pipeline import run_weekly_fetch
+from app.fetcher.fetch_pipeline import run_weekly_fetch, run_sunday_article_generation
 
 # ---------------------------------------------------------------------------
 # Defaults
@@ -115,7 +118,7 @@ def interactive_setup(data_dir: str) -> None:
 
 def run_fetch_and_notify(data_dir: str) -> None:
     """Run the full pipeline: fetch → rank → save → notify via Telegram."""
-    db_path = os.path.join(data_dir, 'researchradar.db')
+    db_path = os.path.join(data_dir, 'researchradar.duckdb')
     database.initialize(db_path)
 
     # Load user profile from settings
@@ -255,6 +258,14 @@ Examples:
         help='Listen for /start commands and exit',
     )
     parser.add_argument(
+        '--cleanup', action='store_true',
+        help='Remove data older than 7 days from the database',
+    )
+    parser.add_argument(
+        '--article', action='store_true',
+        help='Generate a Medium article from the past week and print it',
+    )
+    parser.add_argument(
         '--hour', type=int, default=DEFAULT_HOUR,
         help=f'Hour to fetch (0-23, default: {DEFAULT_HOUR})',
     )
@@ -268,8 +279,7 @@ Examples:
     )
 
     args = parser.parse_args()
-    data_dir = args.data_dir
-    os.makedirs(data_dir, exist_ok=True)
+    db_path = os.path.join(data_dir, 'researchradar.duckdb')
 
     if args.setup:
         interactive_setup(data_dir)
@@ -279,11 +289,25 @@ Examples:
         send_test_message(data_dir)
         return
 
+    database.initialize(db_path)
+
     if args.poll:
-        db_path = os.path.join(data_dir, 'researchradar.db')
-        database.initialize(db_path)
         from app.core.telegram_bot import poll_updates
         poll_updates(data_dir)
+        return
+
+    if args.cleanup:
+        database.cleanup_old_data(db_path)
+        print("✅ Database cleanup complete.")
+        return
+
+    if args.article:
+        article = run_sunday_article_generation(db_path)
+        print("\n" + "="*50)
+        print("📝 GENERATED MEDIUM ARTICLE")
+        print("="*50 + "\n")
+        print(article)
+        print("\n" + "="*50 + "\n")
         return
 
     if args.now:

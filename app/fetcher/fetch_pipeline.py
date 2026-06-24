@@ -239,3 +239,30 @@ def _deduplicate(papers: List[Paper]) -> List[Paper]:
         )
 
     return result
+
+
+def run_sunday_article_generation(db_path: str) -> str:
+    """
+    Weekly article generation.
+    
+    1. Fetch top papers from the last 7 days.
+    2. Generate a cohesive article using Groq.
+    """
+    logger.info("Starting Sunday article generation...")
+    papers = database.get_papers_for_period(db_path, days=7)
+    
+    if not papers:
+        logger.info("No papers found for the last 7 days. Using latest representative papers.")
+        papers = []
+        for cat in ARXIV_CATEGORY_MAP:
+            papers.extend(database.get_papers(db_path, cat, limit=3))
+        papers.sort(key=lambda p: p.composite_score, reverse=True)
+        papers = papers[:15]
+
+    if not papers:
+        return "No research papers available to generate an article."
+
+    summarizer = GroqSummarizer()
+    article = summarizer.generate_article(papers)
+    
+    return article

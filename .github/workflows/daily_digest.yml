@@ -1,14 +1,17 @@
-name: Daily Research Digest
+name: Automatic Research Pipeline
 
 on:
-  # Run every day at 5:00 AM EEST (= 2:00 AM UTC)
   schedule:
-    - cron: '0 2 * * *'
-  # Allow manual trigger from GitHub Actions UI
+    # Monday 1:00 AM UTC: Cleanup previous week's data
+    - cron: '0 1 * * 1'
+    # Mon-Fri 2:00 AM UTC: Fetch and store daily digests
+    - cron: '0 2 * * 1-5'
+    # Sunday 2:00 AM UTC: Generate weekly Medium article
+    - cron: '0 2 * * 0'
   workflow_dispatch:
 
 jobs:
-  send-digest:
+  research-pipeline:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -33,19 +36,46 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run daily digest
+      - name: Determine Action
+        id: action_step
+        run: |
+          DAY_OF_WEEK=$(date +%u) # 1=Mon, 7=Sun
+          HOUR=$(date +%H)
+          if [ "$DAY_OF_WEEK" -eq 1 ] && [ "$HOUR" -eq 1 ]; then
+            echo "mode=cleanup" >> $GITHUB_OUTPUT
+          elif [ "$DAY_OF_WEEK" -ge 1 ] && [ "$DAY_OF_WEEK" -le 5 ]; then
+            echo "mode=daily" >> $GITHUB_OUTPUT
+          elif [ "$DAY_OF_WEEK" -eq 7 ]; then
+            echo "mode=article" >> $GITHUB_OUTPUT
+          else
+            echo "mode=skip" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run Cleanup
+        if: steps.action_step.outputs.mode == 'cleanup'
+        run: python run_daily.py --cleanup --data-dir .
+
+      - name: Run Daily Fetch
+        if: steps.action_step.outputs.mode == 'daily'
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python run_daily.py --now --data-dir .
 
+      - name: Generate Medium Article
+        if: steps.action_step.outputs.mode == 'article'
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: python run_daily.py --article --data-dir . > medium_article.md
+
       - name: Commit and push changes
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           # Only add if files exist
-          [ -f researchradar.db ] && git add researchradar.db
+          [ -f researchradar.duckdb ] && git add researchradar.duckdb
           [ -f .tg_offset ] && git add .tg_offset
-          git commit -m "Automated: Update subscribers and paper database [skip ci]" || echo "No changes to commit"
+          [ -f medium_article.md ] && git add medium_article.md
+          git commit -m "Automated Research Pipeline Update [skip ci]" || echo "No changes to commit"
           git push

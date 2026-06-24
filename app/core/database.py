@@ -1,8 +1,8 @@
 """
-ResearchRadar — SQLite wrapper with migrations.
+ResearchRadar — DuckDB implementation with migrations and cleanup.
 
-All write operations use parameterised queries exclusively.
-Never format SQL strings with user or API data.
+Note: DuckDB is used for its high-performance analytical capabilities 
+and ease of use for structured paper storage.
 """
 
 from __future__ import annotations
@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 import logging
 import os
-import sqlite3
+import duckdb
 import time
 from datetime import date, datetime
 from typing import List, Optional
@@ -21,7 +21,7 @@ from app.core.models import Digest, Paper
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Schema DDL (Version 1)
+# Schema DDL
 # ---------------------------------------------------------------------------
 
 _SCHEMA_V1 = """
@@ -64,9 +64,7 @@ CREATE TABLE IF NOT EXISTS digest_papers (
     digest_id  TEXT NOT NULL,
     paper_id   TEXT NOT NULL,
     rank_order INTEGER NOT NULL,
-    PRIMARY KEY (digest_id, paper_id),
-    FOREIGN KEY (digest_id) REFERENCES digests(digest_id),
-    FOREIGN KEY (paper_id)  REFERENCES papers(paper_id)
+    PRIMARY KEY (digest_id, paper_id)
 );
 
 CREATE TABLE IF NOT EXISTS subscribers (
@@ -79,31 +77,16 @@ CREATE TABLE IF NOT EXISTS subscribers (
 # Connection
 # ---------------------------------------------------------------------------
 
-_DB_RETRY_MAX = 3
-_DB_RETRY_SLEEP = 0.5
-
-
-def get_connection(db_path: str) -> sqlite3.Connection:
-    """Return a connection with row_factory and WAL mode enabled."""
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
-    conn.execute('PRAGMA journal_mode=WAL')
-    conn.execute('PRAGMA foreign_keys=ON')
+def get_connection(db_path: str) -> duckdb.DuckDBPyConnection:
+    """Return a DuckDB connection."""
+    conn = duckdb.connect(db_path)
     return conn
 
 
 def _retry_on_locked(func):
-    """Decorator: retry up to _DB_RETRY_MAX times on 'database is locked'."""
+    """Placeholder for backward compatibility with SQLite functions."""
     def wrapper(*args, **kwargs):
-        for attempt in range(_DB_RETRY_MAX):
-            try:
-                return func(*args, **kwargs)
-            except sqlite3.OperationalError as exc:
-                if 'database is locked' in str(exc) and attempt < _DB_RETRY_MAX - 1:
-                    logger.warning('DB locked — retrying (%d/%d)', attempt + 1, _DB_RETRY_MAX)
-                    time.sleep(_DB_RETRY_SLEEP)
-                else:
-                    raise
+        return func(*args, **kwargs)
     return wrapper
 
 
@@ -113,9 +96,17 @@ def _retry_on_locked(func):
 
 def initialize(db_path: str) -> None:
     """Create tables and run any pending migrations."""
+    # Automatic migration from SQLite if needed
+    sqlite_path = db_path.replace('.duckdb', '.db')
+    if not os.path.exists(db_path) and os.path.exists(sqlite_path):
+        try:
+            _migrate_from_sqlite(sqlite_path, db_path)
+        except Exception as e:
+            logger.error("Failed to migrate from SQLite: %s", e)
+
     conn = get_connection(db_path)
     try:
-        conn.executescript(_SCHEMA_V1)
+        conn.execute(_SCHEMA_V1)
         # Set version if not present
         row = conn.execute(
             "SELECT value FROM meta WHERE key = 'db_version'"
@@ -123,18 +114,17 @@ def initialize(db_path: str) -> None:
         if row is None:
             conn.execute(
                 "INSERT INTO meta (key, value) VALUES ('db_version', ?)",
-                (str(DB_VERSION),),
+                [str(DB_VERSION)],
             )
         else:
-            current = int(row['value'])
+            current = int(row[0])
             if current < DB_VERSION:
                 run_migrations(conn, current, DB_VERSION)
         
-        # Recovery: Ensure 'subscribers' exists even if migrations were skipped 
-        # (Fixes a rare race condition where DB_VERSION was updated before table creation)
+        # Recovery: Ensure 'subscribers' exists
         try:
             conn.execute("SELECT 1 FROM subscribers LIMIT 1")
-        except sqlite3.OperationalError:
+        except Exception:
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS subscribers (
                     chat_id TEXT PRIMARY KEY,
@@ -143,34 +133,43 @@ def initialize(db_path: str) -> None:
             """)
             logger.info('Recovery: Created missing subscribers table.')
 
-        conn.commit()
     finally:
         conn.close()
 
 
-def run_migrations(conn: sqlite3.Connection, current: int, target: int) -> None:
+def _migrate_from_sqlite(sqlite_path: str, duckdb_path: str) -> None:
+    """Migrate data from SQLite to DuckDB using DuckDB's sqlite extension."""
+    logger.info('Migrating data from SQLite (%s) to DuckDB (%s)', sqlite_path, duckdb_path)
+    conn = duckdb.connect(duckdb_path)
+    try:
+        conn.install_extension("sqlite")
+        conn.load_extension("sqlite")
+        conn.execute(f"CALL sqlite_attach('{sqlite_path}');")
+        
+        for table in ['meta', 'papers', 'digests', 'digest_papers', 'subscribers']:
+            try:
+                conn.execute(f"CREATE TABLE {table} AS SELECT * FROM {table};")
+                logger.info('Migrated table: %s', table)
+            except Exception as e:
+                logger.warning('Could not migrate table %s: %s', table, e)
+        
+    finally:
+        conn.close()
+
+
+def run_migrations(conn: duckdb.DuckDBPyConnection, current: int, target: int) -> None:
     """Apply sequential migrations from *current* to *target* version."""
     logger.info('Migrating DB from v%d to v%d', current, target)
     
     if current < 2:
         try:
             conn.execute("ALTER TABLE papers ADD COLUMN summary_llm TEXT")
-            logger.info('V2 Migration: Added summary_llm column to papers table.')
-        except sqlite3.OperationalError as e:
-            if 'duplicate column name' in str(e).lower():
-                pass # Already exists
-            else:
-                raise
+        except Exception: pass
 
     if current < 3:
         try:
             conn.execute("ALTER TABLE digests ADD COLUMN videos_json TEXT")
-            logger.info('V3 Migration: Added videos_json column to digests table.')
-        except sqlite3.OperationalError as e:
-            if 'duplicate column name' in str(e).lower():
-                pass # Already exists
-            else:
-                raise
+        except Exception: pass
 
     if current < 4:
         try:
@@ -180,13 +179,11 @@ def run_migrations(conn: sqlite3.Connection, current: int, target: int) -> None:
                     joined_at TEXT NOT NULL
                 )
             """)
-            logger.info('V4 Migration: Created subscribers table.')
-        except sqlite3.OperationalError:
-            raise
+        except Exception: pass
 
     conn.execute(
         "UPDATE meta SET value = ? WHERE key = 'db_version'",
-        (str(target),),
+        [str(target)],
     )
 
 
@@ -194,8 +191,8 @@ def run_migrations(conn: sqlite3.Connection, current: int, target: int) -> None:
 # Paper helpers
 # ---------------------------------------------------------------------------
 
-def _paper_to_row(paper: Paper) -> tuple:
-    return (
+def _paper_to_row(paper: Paper) -> list:
+    return [
         paper.paper_id,
         paper.source,
         paper.title,
@@ -213,28 +210,28 @@ def _paper_to_row(paper: Paper) -> tuple:
         paper.fetched_at.isoformat(),
         int(paper.is_bookmarked),
         int(paper.is_read),
-    )
+    ]
 
 
-def _row_to_paper(row: sqlite3.Row) -> Paper:
+def _row_to_paper(row) -> Paper:
     return Paper(
-        paper_id=row['paper_id'],
-        source=row['source'],
-        title=row['title'],
-        abstract=row['abstract'],
-        summary_llm=row['summary_llm'],
-        authors=json.loads(row['authors']),
-        published_date=date.fromisoformat(row['published_date']),
-        categories=json.loads(row['categories']),
-        app_category=row['app_category'],
-        pdf_url=row['pdf_url'],
-        abstract_url=row['abstract_url'],
-        citation_count=row['citation_count'],
-        relevance_score=row['relevance_score'],
-        composite_score=row['composite_score'],
-        fetched_at=datetime.fromisoformat(row['fetched_at']),
-        is_bookmarked=bool(row['is_bookmarked']),
-        is_read=bool(row['is_read']),
+        paper_id=row[0],
+        source=row[1],
+        title=row[2],
+        abstract=row[3],
+        summary_llm=row[4],
+        authors=json.loads(row[5]),
+        published_date=date.fromisoformat(row[6]),
+        categories=json.loads(row[7]),
+        app_category=row[8],
+        pdf_url=row[9],
+        abstract_url=row[10],
+        citation_count=row[11],
+        relevance_score=row[12],
+        composite_score=row[13],
+        fetched_at=datetime.fromisoformat(row[14]),
+        is_bookmarked=bool(row[15]),
+        is_read=bool(row[16]),
     )
 
 
@@ -247,7 +244,7 @@ def save_digest(db_path: str, digest: Digest) -> None:
     """Transactional insert of a digest + all its papers."""
     conn = get_connection(db_path)
     try:
-        conn.execute('BEGIN')
+        conn.begin()
 
         # Insert digest record
         conn.execute(
@@ -255,7 +252,7 @@ def save_digest(db_path: str, digest: Digest) -> None:
                (digest_id, week_start, generated_at, total_fetched,
                 total_ranked, fetch_errors, videos_json)
                VALUES (?, ?, ?, ?, ?, ?, ?)""",
-            (
+            [
                 digest.digest_id,
                 digest.week_start.isoformat(),
                 digest.generated_at.isoformat(),
@@ -263,7 +260,7 @@ def save_digest(db_path: str, digest: Digest) -> None:
                 digest.total_ranked,
                 json.dumps(digest.fetch_errors),
                 json.dumps(digest.videos),
-            ),
+            ],
         )
 
         # Insert papers and link to digest
@@ -283,7 +280,7 @@ def save_digest(db_path: str, digest: Digest) -> None:
                 conn.execute(
                     """INSERT OR REPLACE INTO digest_papers
                        (digest_id, paper_id, rank_order) VALUES (?, ?, ?)""",
-                    (digest.digest_id, paper.paper_id, rank),
+                    [digest.digest_id, paper.paper_id, rank],
                 )
 
         conn.commit()
@@ -302,19 +299,19 @@ def get_latest_digest(db_path: str) -> Optional[Digest]:
     conn = get_connection(db_path)
     try:
         row = conn.execute(
-            'SELECT * FROM digests ORDER BY generated_at DESC LIMIT 1'
+            'SELECT digest_id, week_start, generated_at, total_fetched, total_ranked, fetch_errors, videos_json FROM digests ORDER BY generated_at DESC LIMIT 1'
         ).fetchone()
         if row is None:
             return None
 
         digest = Digest(
-            digest_id=row['digest_id'],
-            week_start=date.fromisoformat(row['week_start']),
-            generated_at=datetime.fromisoformat(row['generated_at']),
-            total_fetched=row['total_fetched'],
-            total_ranked=row['total_ranked'],
-            fetch_errors=json.loads(row['fetch_errors'] or '[]'),
-            videos=json.loads(row.get('videos_json', '[]')),
+            digest_id=row[0],
+            week_start=date.fromisoformat(row[1]),
+            generated_at=datetime.fromisoformat(row[2]),
+            total_fetched=row[3],
+            total_ranked=row[4],
+            fetch_errors=json.loads(row[5] or '[]'),
+            videos=json.loads(row[6] or '[]'),
         )
 
         # Load papers linked to this digest
@@ -323,7 +320,7 @@ def get_latest_digest(db_path: str) -> Optional[Digest]:
                INNER JOIN digest_papers dp ON p.paper_id = dp.paper_id
                WHERE dp.digest_id = ?
                ORDER BY dp.rank_order""",
-            (digest.digest_id,),
+            [digest.digest_id],
         ).fetchall()
 
         papers_by_cat: dict = {}
@@ -346,7 +343,7 @@ def get_papers(db_path: str, category: str, limit: int = 10) -> List[Paper]:
                WHERE app_category = ?
                ORDER BY composite_score DESC
                LIMIT ?""",
-            (category, limit),
+            [category, limit],
         ).fetchall()
         return [_row_to_paper(r) for r in rows]
     finally:
@@ -360,15 +357,10 @@ def get_existing_paper_ids(db_path: str, candidate_ids: List[str]) -> set[str]:
         return set()
     conn = get_connection(db_path)
     try:
-        # Use chunks if there are too many IDs (SQLite limit is 999 placeholders usually)
-        chunk_size = 900
-        existing = set()
-        for i in range(0, len(candidate_ids), chunk_size):
-            chunk = candidate_ids[i : i + chunk_size]
-            placeholders = ', '.join(['?'] * len(chunk))
-            query = f"SELECT paper_id FROM papers WHERE paper_id IN ({placeholders})"
-            rows = conn.execute(query, chunk).fetchall()
-            existing.update(r['paper_id'] for r in rows)
+        placeholders = ', '.join(['?'] * len(candidate_ids))
+        query = f"SELECT paper_id FROM papers WHERE paper_id IN ({placeholders})"
+        rows = conn.execute(query, candidate_ids).fetchall()
+        existing = set(r[0] for r in rows)
         return existing
     finally:
         conn.close()
@@ -383,14 +375,13 @@ def toggle_bookmark(db_path: str, paper_id: str) -> bool:
             """UPDATE papers
                SET is_bookmarked = CASE WHEN is_bookmarked = 0 THEN 1 ELSE 0 END
                WHERE paper_id = ?""",
-            (paper_id,),
+            [paper_id],
         )
-        conn.commit()
         row = conn.execute(
             'SELECT is_bookmarked FROM papers WHERE paper_id = ?',
-            (paper_id,),
+            [paper_id],
         ).fetchone()
-        return bool(row['is_bookmarked']) if row else False
+        return bool(row[0]) if row else False
     finally:
         conn.close()
 
@@ -402,9 +393,8 @@ def mark_read(db_path: str, paper_id: str) -> None:
     try:
         conn.execute(
             'UPDATE papers SET is_read = 1 WHERE paper_id = ?',
-            (paper_id,),
+            [paper_id],
         )
-        conn.commit()
     finally:
         conn.close()
 
@@ -423,9 +413,6 @@ def get_bookmarked_papers(db_path: str) -> List[Paper]:
     finally:
         conn.close()
 
-# ---------------------------------------------------------------------------
-# Subscriber Management
-# ---------------------------------------------------------------------------
 
 @_retry_on_locked
 def add_subscriber(db_path: str, chat_id: str) -> bool:
@@ -434,16 +421,15 @@ def add_subscriber(db_path: str, chat_id: str) -> bool:
     try:
         row = conn.execute(
             'SELECT chat_id FROM subscribers WHERE chat_id = ?',
-            (chat_id,)
+            [chat_id]
         ).fetchone()
         if row:
             return False
         
         conn.execute(
             'INSERT INTO subscribers (chat_id, joined_at) VALUES (?, ?)',
-            (chat_id, datetime.now().isoformat())
+            [chat_id, datetime.now().isoformat()]
         )
-        conn.commit()
         return True
     finally:
         conn.close()
@@ -455,7 +441,7 @@ def get_all_subscribers(db_path: str) -> List[str]:
     conn = get_connection(db_path)
     try:
         rows = conn.execute('SELECT chat_id FROM subscribers').fetchall()
-        return [str(r['chat_id']) for r in rows]
+        return [str(r[0]) for r in rows]
     finally:
         conn.close()
 
@@ -465,7 +451,55 @@ def remove_subscriber(db_path: str, chat_id: str) -> None:
     """Remove a subscriber ($stop)."""
     conn = get_connection(db_path)
     try:
-        conn.execute('DELETE FROM subscribers WHERE chat_id = ?', (chat_id,))
-        conn.commit()
+        conn.execute('DELETE FROM subscribers WHERE chat_id = ?', [chat_id])
+    finally:
+        conn.close()
+
+
+@_retry_on_locked
+def cleanup_old_data(db_path: str, days: int = 7) -> None:
+    """Remove old papers and digests, keeping bookmarks."""
+    logger.info('Cleaning up data older than %d days...', days)
+    conn = get_connection(db_path)
+    try:
+        # Delete old links
+        conn.execute("""
+            DELETE FROM digest_papers 
+            WHERE digest_id IN (
+                SELECT digest_id FROM digests 
+                WHERE generated_at < strftime('%Y-%m-%d', 'now', '-' || ? || ' days')
+            )
+        """, [days])
+        
+        # Delete old digests
+        conn.execute("""
+            DELETE FROM digests 
+            WHERE generated_at < strftime('%Y-%m-%d', 'now', '-' || ? || ' days')
+        """, [days])
+        
+        # Delete old papers (unless bookmarked)
+        conn.execute("""
+            DELETE FROM papers 
+            WHERE is_bookmarked = 0 
+            AND fetched_at < strftime('%Y-%m-%d', 'now', '-' || ? || ' days')
+        """, [days])
+        
+        logger.info('Cleanup complete.')
+    finally:
+        conn.close()
+
+
+@_retry_on_locked
+def get_papers_for_period(db_path: str, days: int = 7) -> List[Paper]:
+    """Get all papers fetched in the last N days."""
+    conn = get_connection(db_path)
+    try:
+        rows = conn.execute(
+            """SELECT * FROM papers 
+               WHERE fetched_at > strftime('%Y-%m-%d', 'now', '-' || ? || ' days')
+               ORDER BY composite_score DESC""",
+            [days]
+        ).fetchall()
+        return [_row_to_paper(r) for r in rows]
     finally:
         conn.close()
